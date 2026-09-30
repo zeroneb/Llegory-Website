@@ -134,17 +134,11 @@ function pts(a){return a.map(function(p){return p[0].toFixed(1)+','+p[1].toFixed
 function pg(p,fill,sw,dash){return '<polygon points="'+pts(p)+'" fill="'+fill+'" stroke="'+I+
   '" stroke-width="'+sw+'" stroke-linejoin="round"'+(dash?' stroke-dasharray="'+dash+'"':'')+'/>'}
 
-/* ---- WHAT YOU GET ----
-   A pitched roof belongs to a house, and a house is small. So proportion alone
-   is not enough: a 200-wide block pulled to 300 has the same ratio as a cottage.
-     flat and wide            -> SLAB   (flat roof)
-     small and roughly square -> HOUSE  (pitched roof)
-     tall, or very slender    -> TOWER  (flat roof, window rows)              */
-var HOUSE_MAX=110;      // a house is at most about three storeys
+var HOUSE_MAX=110;
 function classify(w,d,h){
   var span=Math.max(w,d)*2, r=h/span;
-  if(r<0.7) return 'slab';                 // wider than it is tall
-  if(h>HOUSE_MAX || r>=2.5) return 'tower';// too tall, or too slender, to be a house
+  if(r<0.7) return 'slab';
+  if(h>HOUSE_MAX || r>=2.5) return 'tower';
   return 'house';
 }
 function roofH(v){ return v.type==='house' ? Math.min(v.h*0.38, 34) : 0; }
@@ -312,7 +306,7 @@ addEventListener('keydown',function(e){ if(e.key==='Escape') cancel() });
 var orbiting=false,lastX=0,lastY=0,pressT=0;
 svg.addEventListener('pointerdown',function(e){
   svg.setPointerCapture(e.pointerId); pressT=Date.now(); touched=true;
-  if(e.button===2){                                  // right-click removes
+  if(e.button===2){
     var hit=pick(e.clientX,e.clientY);
     if(hit){vols.splice(vols.indexOf(hit),1);dirty=true}
     cancel(); return;
@@ -344,8 +338,8 @@ svg.addEventListener('contextmenu',function(e){e.preventDefault()});
 svg.addEventListener('wheel',function(e){
   e.preventDefault();
   var dx=e.deltaX, dy=e.deltaY;
-  if(e.shiftKey && Math.abs(dy)>Math.abs(dx)){ dx=dy; dy=0; }   // shift+wheel orbits too
-  if(Math.abs(dx)>Math.abs(dy)){                                 // trackball / horizontal scroll -> orbit
+  if(e.shiftKey && Math.abs(dy)>Math.abs(dx)){ dx=dy; dy=0; }
+  if(Math.abs(dx)>Math.abs(dy)){
     yaw+=dx*.004;
     knob.style.left=(((yaw%6.283)/6.283*100+100)%100).toFixed(0)+'%';
   }else{
@@ -377,7 +371,6 @@ document.getElementById('b').addEventListener('click',async function(){
   }
 });
 
-/* land empty; only if nothing has been touched do a few volumes arrive */
 var SEEDS=[[-62,-36,46,32,64],[44,-16,26,26,150],[6,56,44,44,40],[-104,46,28,28,86]];
 function seed(i){
   if(touched||i>=SEEDS.length) return;
@@ -389,14 +382,6 @@ function seed(i){
 }
 setTimeout(function(){if(!touched) seed(0)},8000);
 })();
-</script>
-
-<!-- Google Analytics (add your GA_MEASUREMENT_ID) -->
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'GA_MEASUREMENT_ID');
 </script>
 
 </body>
