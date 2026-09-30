@@ -32,11 +32,17 @@ export default async function handler(req, res) {
       }),
     });
 
-    const data = await response.json();
-    console.log('Mailchimp Response:', response.status, data);
+    const text = await response.text();
+    console.log('Mailchimp Response Status:', response.status);
+    console.log('Mailchimp Response Text:', text);
 
     if (!response.ok) {
-      return res.status(response.status).json({ error: data.detail || data.title || JSON.stringify(data) });
+      try {
+        const data = JSON.parse(text);
+        return res.status(response.status).json({ error: data.detail || data.title || JSON.stringify(data) });
+      } catch (e) {
+        return res.status(response.status).json({ error: text.substring(0, 100) });
+      }
     }
 
     return res.status(200).json({ success: true, message: 'Subscribed successfully' });
