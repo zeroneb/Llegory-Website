@@ -4,6 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>Llegory</title>
+<meta name="description" content="Llegory is a browser-based 3D design platform: sketch, model and render in one place, with AI that speeds up the work without replacing the designer.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://llegory.com/">
+<meta property="og:title" content="Llegory">
+<meta property="og:description" content="A browser-based 3D design platform: sketch, model and render in one place, with AI that speeds up the work without replacing the designer.">
+<meta property="og:image" content="https://llegory.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Llegory">
+<meta name="twitter:description" content="A browser-based 3D design platform: sketch, model and render in one place, with AI that speeds up the work without replacing the designer.">
+<meta name="twitter:image" content="https://llegory.com/og.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -49,6 +61,11 @@ font-size:10px;letter-spacing:.14em;text-transform:uppercase;padding:9px 14px;fl
 .row button:hover{background:var(--red)}
 .msg{margin-top:9px;font-size:10px;font-weight:500;letter-spacing:.13em;text-transform:uppercase;color:var(--ink6)}
 .msg.err{color:var(--red)}
+.hint{display:none;top:calc(10px + 110px);left:var(--edge);right:var(--edge);pointer-events:none;
+font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink6);line-height:1.9;font-weight:500}
+.hint b{font-weight:700;color:var(--ink);text-shadow:0 0 0.5px rgba(42,46,208,0.95)}
+.hint .now{color:var(--red)}
+@media(pointer:coarse){.bl{display:none!important}.hint{display:block}}
 @media(max-width:768px){.bl{display:none}.card{min-width:0;width:min(86vw,300px)}.tr .n{font-size:24px}.tl{gap:8px}}
 @media(max-width:480px){.tl .nm{font-size:14px}.tl .pr{font-size:9px}.tr .n{font-size:20px}.tr .l{font-size:9px}.tr button{font-size:9px}.bl{display:none}.card{min-width:0;width:min(90vw,280px);padding:12px 14px 11px}.card .k{font-size:9px;margin-bottom:9px}.row{gap:8px;padding-bottom:6px}.row input{font-size:13px}.row button{padding:7px 11px;font-size:9px}.msg{font-size:9px;margin-top:7px}}
 </style>
@@ -97,6 +114,11 @@ font-size:10px;letter-spacing:.14em;text-transform:uppercase;padding:9px 14px;fl
   <div><b>Drag</b> a footprint, then <b>pull up</b></div>
   <div><b>Right-click</b> to remove &nbsp;&middot;&nbsp; <b>Esc</b> to cancel</div>
   <div class="orbit" id="orb"><span>Orbit</span><span class="track"><i></i><b id="knob"></b></span></div>
+</div>
+
+<div class="ui hint" id="hint">
+  <div id="hstep"><b>Drag</b> a footprint</div>
+  <div><b>Hold</b> to remove &nbsp;&middot;&nbsp; <b>Two fingers</b> to orbit &amp; zoom</div>
 </div>
 
 <div class="ui br">
@@ -304,8 +326,67 @@ function cancel(){MODE='idle';drag=null;ghostG.innerHTML='';svg.classList.remove
 addEventListener('keydown',function(e){ if(e.key==='Escape') cancel() });
 
 var orbiting=false,lastX=0,lastY=0,pressT=0;
+// Touch support: drag up to raise, hold to remove, two fingers to orbit and zoom.
+var tp=new Map(), gest=null, gestUsed=false, lp=null, lpFired=false, lpX=0, lpY=0, tHeight=false;
+var hstep=document.getElementById('hstep');
+function setStep(h){ if(hstep) hstep.innerHTML=h; }
+function stepIdle(){ setStep('<b>Drag</b> a footprint'); }
+function clearLP(){ if(lp){clearTimeout(lp);lp=null} }
+function gestInfo(){ var a=[...tp.values()];
+  return {d:Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y)||1, mx:(a[0].x+a[1].x)/2, my:(a[0].y+a[1].y)/2}; }
+function touchDown(e){
+  tp.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  trailPts=[]; trail.setAttribute('points','');
+  if(tp.size>=2){
+    clearLP(); gestUsed=true; tHeight=false;
+    if(MODE==='foot') cancel();
+    if(tp.size===2) gest=gestInfo();
+    return true;
+  }
+  if(MODE==='height'&&drag){
+    drag.sy=e.clientY; drag.h0=drag.h||0; tHeight=true; return true;
+  }
+  lpX=e.clientX; lpY=e.clientY; lpFired=false; clearLP();
+  lp=setTimeout(function(){
+    lp=null;
+    var hit=pick(lpX,lpY);
+    if(hit){ vols.splice(vols.indexOf(hit),1); dirty=true; lpFired=true; cancel(); stepIdle();
+      if(navigator.vibrate) navigator.vibrate(12); }
+  },550);
+  return false;
+}
+function touchMove(e){
+  if(!tp.has(e.pointerId)) return false;
+  tp.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(gest&&tp.size===2){
+    var g=gestInfo();
+    scale*=g.d/gest.d; scale=Math.min(3.2,Math.max(.32,scale));
+    yaw+=(g.mx-gest.mx)*.008; cy+=(g.my-gest.my)*.55;
+    knob.style.left=(((yaw%6.283)/6.283*100+100)%100).toFixed(0)+'%';
+    gest=g; dirty=true; return true;
+  }
+  if(gestUsed||lpFired) return true;
+  if(lp&&Math.hypot(e.clientX-lpX,e.clientY-lpY)>10) clearLP();
+  return false;
+}
+function touchUp(e){
+  tp.delete(e.pointerId); clearLP();
+  if(tp.size<2) gest=null;
+  if(gestUsed){ if(tp.size===0) gestUsed=false; return true; }
+  if(lpFired){ lpFired=false; return true; }
+  if(tHeight&&MODE==='height'&&drag){
+    commit(drag.x0,drag.x1,drag.y0,drag.y1,drag.h); cancel(); tHeight=false; stepIdle(); return true;
+  }
+  return false;
+}
+svg.addEventListener('pointercancel',function(e){
+  if(e.pointerType!=='touch') return;
+  tp.delete(e.pointerId); clearLP(); if(tp.size<2) gest=null;
+  if(tp.size===0){ gestUsed=false; lpFired=false; tHeight=false; if(MODE==='foot') cancel(); }
+});
 svg.addEventListener('pointerdown',function(e){
   svg.setPointerCapture(e.pointerId); pressT=Date.now(); touched=true;
+  if(e.pointerType==='touch'&&touchDown(e)) return;
   if(e.button===2){
     var hit=pick(e.clientX,e.clientY);
     if(hit){vols.splice(vols.indexOf(hit),1);dirty=true}
@@ -317,14 +398,18 @@ svg.addEventListener('pointerdown',function(e){
   drag={ax:w[0],ay:w[1],bx:w[0],by:w[1],h:0}; MODE='foot';
 });
 svg.addEventListener('pointermove',function(e){
-  trailPts.push([e.clientX,e.clientY]); if(trailPts.length>26) trailPts.shift();
+  if(e.pointerType==='touch'){ if(touchMove(e)) return; }
+  else { trailPts.push([e.clientX,e.clientY]); if(trailPts.length>26) trailPts.shift(); }
   if(orbiting){yaw+=(e.clientX-lastX)*.006;cy+=(e.clientY-lastY)*.55;lastX=e.clientX;lastY=e.clientY;
     knob.style.left=(((yaw%6.283)/6.283*100+100)%100).toFixed(0)+'%';dirty=true;return}
   if(MODE==='foot'&&drag){var w=unproj(e.clientX,e.clientY);drag.bx=w[0];drag.by=w[1];renderGhost();return}
-  if(MODE==='height'&&drag){drag.h=Math.max(0,(drag.sy-e.clientY)/scale*1.15);renderGhost();return}
+  if(MODE==='height'&&drag){
+    if(e.pointerType==='touch'&&!tHeight) return;
+    drag.h=Math.max(0,(drag.h0||0)+(drag.sy-e.clientY)/scale*1.15);renderGhost();return}
   if(MODE==='idle') svg.classList.toggle('over', !!pick(e.clientX,e.clientY));
 });
 svg.addEventListener('pointerup',function(e){
+  if(e.pointerType==='touch'&&touchUp(e)) return;
   if(orbiting){orbiting=false;svg.classList.remove('orbiting');return}
   if(MODE!=='foot'||!drag)return;
   var w=Math.abs(drag.bx-drag.ax), d=Math.abs(drag.by-drag.ay);
@@ -333,6 +418,7 @@ svg.addEventListener('pointerup',function(e){
         y0:Math.min(drag.ay,drag.by),y1:Math.max(drag.ay,drag.by),h:0,sy:e.clientY};
   drag.ax=drag.x0;drag.bx=drag.x1;drag.ay=drag.y0;drag.by=drag.y1;
   MODE='height'; svg.classList.add('pulling'); renderGhost();
+  if(e.pointerType==='touch') setStep('<b class="now">Now drag up</b> to raise it');
 });
 svg.addEventListener('contextmenu',function(e){e.preventDefault()});
 svg.addEventListener('wheel',function(e){
